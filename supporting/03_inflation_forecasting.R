@@ -17,19 +17,8 @@
 # - seasonal ARIMA modeling for monthly inflation.
 
 # REQUIRED PACKAGES ------------------------------------------------------------
-required_packages <- c("readxl", "forecast", "tseries")
-
-missing_packages <- required_packages[
-  !required_packages %in% rownames(installed.packages())
-]
-
-if (length(missing_packages) > 0) {
-  install.packages(missing_packages)
-}
-
-library(readxl)
-library(forecast)
-library(tseries)
+source(file.path("R", "packages.R"))  # run from the repository root
+require_packages(c("readxl", "forecast", "tseries"))
 
 # DATA AVAILABILITY -------------------------------------------------------------
 # Expected file: data/Inflation.xls

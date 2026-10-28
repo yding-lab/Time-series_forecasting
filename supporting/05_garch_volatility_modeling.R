@@ -16,27 +16,8 @@
 # and two-period volatility forecast are retained.
 
 # REQUIRED PACKAGES ------------------------------------------------------------
-required_packages <- c(
-  "readxl",
-  "forecast",
-  "tseries",
-  "FinTS",
-  "fGarch"
-)
-
-missing_packages <- required_packages[
-  !required_packages %in% rownames(installed.packages())
-]
-
-if (length(missing_packages) > 0) {
-  install.packages(missing_packages)
-}
-
-library(readxl)
-library(forecast)
-library(tseries)
-library(FinTS)
-library(fGarch)
+source(file.path("R", "packages.R"))  # run from the repository root
+require_packages(c("readxl", "forecast", "tseries", "FinTS", "fGarch"))
 
 # DATA AVAILABILITY -------------------------------------------------------------
 # Expected file: data/Inflation.xls
