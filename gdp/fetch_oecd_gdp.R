@@ -4,13 +4,13 @@
 #   Rscript gdp/fetch_oecd_gdp.R            # run from the repository root
 #
 # Writes:
-#   data/comparative_gdp_oecd.csv           date, united_states, canada, europe
+#   data/comparative_gdp_oecd.csv           date, united_states, canada, germany
 #   data/comparative_gdp_oecd.SOURCE.txt    query URL, series definition, retrieval time
 #
 # Series (OECD Quarterly National Accounts, dataflow DSD_NAMAIN1@DF_QNA v1.1):
 #   real GDP (B1GQ, total economy), chain-linked volume (PRICE_BASE = L), national
 #   currency (XDC), calendar and seasonally adjusted (ADJUSTMENT = Y), quarterly levels.
-#   "europe" is Germany (DEU), the European proxy the original report used.
+#   "germany" is Germany (DEU), the European proxy the original report used.
 #
 # The data is not committed to this repository. Reuse is governed by the OECD's terms:
 # https://www.oecd.org/en/about/terms-conditions.html
@@ -18,7 +18,7 @@
 
 START <- "1995-Q1"
 END <- "2023-Q4" # the window analysed in the report
-COUNTRIES <- c(united_states = "USA", canada = "CAN", europe = "DEU")
+COUNTRIES <- c(united_states = "USA", canada = "CAN", germany = "DEU")
 
 key <- sprintf(
   "Q.Y.%s.S1.S1.B1GQ._Z._Z._Z.XDC.L.N.T0102",
@@ -66,7 +66,7 @@ writeLines(c(
   "Source: OECD Quarterly National Accounts (DSD_NAMAIN1@DF_QNA, version 1.1)",
   paste("Query:", url),
   "Series: real GDP (B1GQ), chain-linked volume (L), national currency (XDC), calendar and seasonally adjusted (Y)",
-  "Columns: united_states = USA, canada = CAN, europe = DEU (Germany, the report's European proxy)",
+  "Columns: united_states = USA, canada = CAN, germany = DEU (Germany, the report's European proxy)",
   paste("Retrieved (UTC):", format(Sys.time(), tz = "UTC", usetz = TRUE)),
   "Terms of use: https://www.oecd.org/en/about/terms-conditions.html",
   "Values are subject to revision by the OECD; re-downloading later may change them."

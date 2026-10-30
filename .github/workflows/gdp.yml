@@ -8,6 +8,14 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      commit_report:
+        description: "Commit the regenerated report/ back to this branch"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write  # used only by the manual "commit_report" run
 
 jobs:
   reproduce:
@@ -33,10 +41,33 @@ jobs:
         run: Rscript gdp/comparative_gdp_analysis.R
       - name: Rolling-origin evaluation
         run: Rscript gdp/rolling_origin_evaluation.R
+      - name: Build the report and its figures
+        run: |
+          cp -r report report.committed 2>/dev/null || true
+          Rscript gdp/build_report.R
+      - name: Does the committed report match a fresh run?
+        run: |
+          # The first line records the build date and versions, so it always differs.
+          if [ -f report.committed/comparative_gdp_report.md ] && \
+             diff <(tail -n +4 report.committed/comparative_gdp_report.md) <(tail -n +4 report/comparative_gdp_report.md) > report.diff; then
+            echo "::notice title=report::committed report matches this run"
+          else
+            echo "::warning title=report::committed report differs from this run (OECD revision, package change or code change). Re-run this workflow manually with commit_report to refresh it."
+            head -c 3000 report.diff || true
+          fi
+      - name: Commit the regenerated report (manual runs only)
+        if: github.event_name == 'workflow_dispatch' && inputs.commit_report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add report/
+          git diff --cached --quiet && { echo "report unchanged"; exit 0; }
+          git commit -m "Regenerate report from CI run ${{ github.run_id }} (OECD data retrieved this run)"
+          git push origin "HEAD:${{ github.ref_name }}"
       - name: Publish result tables as annotations
         if: always()
         run: |
-          for f in results/gdp_results.md results/rolling_origin.md data/comparative_gdp_oecd.SOURCE.txt err.txt; do
+          for f in results/gdp_results.md results/rolling_origin.md data/comparative_gdp_oecd.SOURCE.txt err.txt report.diff; do
             [ -f "$f" ] || continue
             python3 -c "import sys;t=open(sys.argv[1]).read().replace('%','%25').replace('\n','%0A');print('::notice title='+sys.argv[1]+'::'+t)" "$f"
           done

@@ -1,5 +1,5 @@
 # ==============================================================================
-# Comparative GDP growth forecasting: North America vs Europe
+# Comparative GDP growth forecasting: US/Canada average vs Germany
 # Language: R
 #
 #   Rscript gdp/fetch_oecd_gdp.R              # once: download the OECD input data
@@ -11,7 +11,8 @@
 
 
 # PROJECT OVERVIEW -------------------------------------------------------------
-# This project compares quarterly GDP growth in North America and Europe using:
+# This project compares quarterly GDP growth of the United States and Canada (averaged)
+# with Germany, the original report's stand-in for Europe, using:
 # - quarterly growth-rate transformation,
 # - STL decomposition and Holt-Winters smoothing,
 # - ARIMA forecasting,
@@ -23,8 +24,11 @@
 # - Target: quarter-over-quarter growth of seasonally adjusted real GDP,
 #   computed as 100 * [log(GDP_t) - log(GDP_t-1)], in PERCENT PER QUARTER
 #   (not annualized).
-# - North America = simple average of the US and Canada growth rates.
-# - Europe = Germany, the European proxy used in the final report.
+# - US/Canada average = unweighted mean of the US and Canadian growth rates, quarter by
+#   quarter. It is NOT an official North American aggregate: the US economy is roughly ten
+#   times Canada's, so a GDP-weighted aggregate would track the US much more closely.
+# - Germany = Germany alone. The original report used it as a proxy for Europe; it is
+#   labelled as Germany here because it is not a European aggregate.
 #
 # The script is aligned with the accompanying final report and preserves its
 # analytical framework and model interpretation. Numbers quoted from the report
@@ -62,9 +66,9 @@ md_table <- function(df, digits = 3) {
 # Expected file: data/comparative_gdp_oecd.csv (created by gdp/fetch_oecd_gdp.R)
 #
 # Required columns:
-# date, united_states, canada, europe
+# date, united_states, canada, germany
 #
-# "europe" should contain the same European series used in the final report.
+# "germany" should contain the same European series used in the final report.
 # The report notes that German data were used as a European proxy in the final
 # implementation, despite the broader EU framing.
 
@@ -78,7 +82,7 @@ if (!file.exists(data_path)) {
     paste(
       "Missing data/comparative_gdp_oecd.csv.",
       "Run `Rscript gdp/fetch_oecd_gdp.R` first",
-      "(required columns: date, united_states, canada, europe)."
+      "(required columns: date, united_states, canada, germany)."
     ),
     call. = FALSE
   )
@@ -94,7 +98,7 @@ required_columns <- c(
   "date",
   "united_states",
   "canada",
-  "europe"
+  "germany"
 )
 
 missing_columns <- setdiff(
@@ -113,7 +117,7 @@ if (length(missing_columns) > 0) {
 
 gdp_data$united_states <- as.numeric(gdp_data$united_states)
 gdp_data$canada <- as.numeric(gdp_data$canada)
-gdp_data$europe <- as.numeric(gdp_data$europe)
+gdp_data$germany <- as.numeric(gdp_data$germany)
 
 if (anyNA(gdp_data[required_columns[-1]]) || any(gdp_data[required_columns[-1]] <= 0)) {
   stop("GDP levels must be positive and complete.", call. = FALSE)
@@ -129,9 +133,9 @@ first_quarter <- as.integer(sub(".*Q", "", gdp_data$date[1]))
 
 us_growth <- diff(log(gdp_data$united_states)) * 100
 canada_growth <- diff(log(gdp_data$canada)) * 100
-europe_growth <- diff(log(gdp_data$europe)) * 100
+germany_growth <- diff(log(gdp_data$germany)) * 100
 
-north_america_growth <- rowMeans(
+us_canada_growth <- rowMeans(
   cbind(
     us_growth,
     canada_growth
@@ -141,14 +145,14 @@ north_america_growth <- rowMeans(
 
 growth_start <- c(first_year + (first_quarter == 4), first_quarter %% 4 + 1)
 
-north_america_ts <- ts(
-  north_america_growth,
+us_canada_ts <- ts(
+  us_canada_growth,
   start = growth_start,
   frequency = 4
 )
 
-europe_ts <- ts(
-  europe_growth,
+germany_ts <- ts(
+  germany_growth,
   start = growth_start,
   frequency = 4
 )
@@ -157,28 +161,28 @@ add("# Comparative GDP results")
 add("")
 add(sprintf("Data: `%s`, %d quarters (%s to %s), %d growth observations per region. ",
             data_path, nrow(gdp_data), gdp_data$date[1], gdp_data$date[nrow(gdp_data)],
-            length(north_america_ts)),
+            length(us_canada_ts)),
     "Target: quarter-over-quarter log growth of seasonally adjusted real GDP, % per quarter.")
 add("")
 
 # EXPLORATORY ANALYSIS ----------------------------------------------------------
 save_plot("growth_series", {
   ts.plot(
-    north_america_ts,
-    europe_ts,
+    us_canada_ts,
+    germany_ts,
     lty = c(1, 2),
-    main = "Quarterly GDP Growth: North America vs Europe",
+    main = "Quarterly GDP Growth: US/Canada average vs Germany",
     ylab = "Quarter-over-Quarter Growth (%)"
   )
-  legend("topleft", legend = c("North America", "Europe"), lty = c(1, 2), bty = "n")
+  legend("topleft", legend = c("US/Canada average", "Germany"), lty = c(1, 2), bty = "n")
 })
 
 summary_statistics <- data.frame(
-  region = c("North America", "Europe"),
-  mean = c(mean(north_america_ts), mean(europe_ts)),
-  standard_deviation = c(sd(north_america_ts), sd(europe_ts)),
-  minimum = c(min(north_america_ts), min(europe_ts)),
-  maximum = c(max(north_america_ts), max(europe_ts))
+  region = c("US/Canada average", "Germany"),
+  mean = c(mean(us_canada_ts), mean(germany_ts)),
+  standard_deviation = c(sd(us_canada_ts), sd(germany_ts)),
+  minimum = c(min(us_canada_ts), min(germany_ts)),
+  maximum = c(max(us_canada_ts), max(germany_ts))
 )
 
 print(summary_statistics)
@@ -188,27 +192,28 @@ add("")
 add(md_table(summary_statistics))
 add("")
 
-# Reported in the original report (see README: not consistent with QoQ growth of
+# Reported in the original report, which labelled the series "North America" and
+# "Europe" (see README: not consistent with QoQ growth of
 # real GDP, which averages well under 1% per quarter for the US and Canada):
-# North America mean: approximately 4.48
-# North America standard deviation: approximately 0.67
-# Europe mean: approximately 0.76
-# Europe standard deviation: approximately 0.47
+# "North America" mean: approximately 4.48
+# "North America" standard deviation: approximately 0.67
+# Germany mean: approximately 0.76
+# Germany standard deviation: approximately 0.47
 
 # TREND AND SEASONALITY ---------------------------------------------------------
-north_america_stl <- stl(north_america_ts, s.window = "periodic")
-europe_stl <- stl(europe_ts, s.window = "periodic")
-save_plot("stl_north_america", plot(north_america_stl))
-save_plot("stl_europe", plot(europe_stl))
+us_canada_stl <- stl(us_canada_ts, s.window = "periodic")
+germany_stl <- stl(germany_ts, s.window = "periodic")
+save_plot("stl_us_canada", plot(us_canada_stl))
+save_plot("stl_germany", plot(germany_stl))
 
-north_america_hw <- HoltWinters(north_america_ts)
-europe_hw <- HoltWinters(europe_ts)
-save_plot("holt_winters_north_america", plot(north_america_hw))
-save_plot("holt_winters_europe", plot(europe_hw))
+us_canada_hw <- HoltWinters(us_canada_ts)
+germany_hw <- HoltWinters(germany_ts)
+save_plot("holt_winters_us_canada", plot(us_canada_hw))
+save_plot("holt_winters_germany", plot(germany_hw))
 
 # STATIONARITY -----------------------------------------------------------------
-adf_na <- adf.test(north_america_ts)
-adf_eu <- adf.test(europe_ts)
+adf_na <- adf.test(us_canada_ts)
+adf_eu <- adf.test(germany_ts)
 print(adf_na)
 print(adf_eu)
 
@@ -216,31 +221,31 @@ print(adf_eu)
 # The last 8 quarters are held out; models never see them during fitting.
 forecast_horizon <- 8
 
-north_america_train <- head(north_america_ts, length(north_america_ts) - forecast_horizon)
-north_america_test <- tail(north_america_ts, forecast_horizon)
-europe_train <- head(europe_ts, length(europe_ts) - forecast_horizon)
-europe_test <- tail(europe_ts, forecast_horizon)
+us_canada_train <- head(us_canada_ts, length(us_canada_ts) - forecast_horizon)
+us_canada_test <- tail(us_canada_ts, forecast_horizon)
+germany_train <- head(germany_ts, length(germany_ts) - forecast_horizon)
+germany_test <- tail(germany_ts, forecast_horizon)
 
 # ARIMA MODELING ---------------------------------------------------------------
-north_america_arima <- auto.arima(north_america_train, seasonal = TRUE)
-europe_arima <- auto.arima(europe_train, seasonal = TRUE)
+us_canada_arima <- auto.arima(us_canada_train, seasonal = TRUE)
+germany_arima <- auto.arima(germany_train, seasonal = TRUE)
 
-print(summary(north_america_arima))
-print(summary(europe_arima))
+print(summary(us_canada_arima))
+print(summary(germany_arima))
 
-save_plot("residuals_north_america", checkresiduals(north_america_arima, plot = TRUE))
-save_plot("residuals_europe", checkresiduals(europe_arima, plot = TRUE))
+save_plot("residuals_us_canada", checkresiduals(us_canada_arima, plot = TRUE))
+save_plot("residuals_germany", checkresiduals(germany_arima, plot = TRUE))
 
-north_america_forecast <- forecast(north_america_arima, h = forecast_horizon, level = c(80, 95))
-europe_forecast <- forecast(europe_arima, h = forecast_horizon, level = c(80, 95))
+us_canada_forecast <- forecast(us_canada_arima, h = forecast_horizon, level = c(80, 95))
+germany_forecast <- forecast(germany_arima, h = forecast_horizon, level = c(80, 95))
 
-save_plot("holdout_forecast_north_america", {
-  plot(north_america_forecast, main = "North America GDP Growth Forecast (holdout)")
-  lines(north_america_test, lty = 2)
+save_plot("holdout_forecast_us_canada", {
+  plot(us_canada_forecast, main = "US/Canada average GDP Growth Forecast (holdout)")
+  lines(us_canada_test, lty = 2)
 })
-save_plot("holdout_forecast_europe", {
-  plot(europe_forecast, main = "Europe GDP Growth Forecast (holdout)")
-  lines(europe_test, lty = 2)
+save_plot("holdout_forecast_germany", {
+  plot(germany_forecast, main = "Germany GDP Growth Forecast (holdout)")
+  lines(germany_test, lty = 2)
 })
 
 # FORECAST ACCURACY: IN-SAMPLE FIT VS OUT-OF-SAMPLE FORECASTS -----------------------
@@ -274,18 +279,36 @@ evaluate_holdout <- function(region, train, test, arima_fc) {
 }
 
 accuracy_comparison <- rbind(
-  evaluate_holdout("North America", north_america_train, north_america_test, north_america_forecast),
-  evaluate_holdout("Europe", europe_train, europe_test, europe_forecast)
+  evaluate_holdout("US/Canada average", us_canada_train, us_canada_test, us_canada_forecast),
+  evaluate_holdout("Germany", germany_train, germany_test, germany_forecast)
 )
 
 print(accuracy_comparison)
 write.csv(accuracy_comparison, file.path(results_dir, "holdout_accuracy.csv"), row.names = FALSE)
 
+# Holdout forecasts with intervals and the actual values, for the report figures.
+holdout_frame <- function(region, fc, test) {
+  t <- time(test)
+  data.frame(region = region,
+             quarter = sprintf("%d-Q%d", floor(t + 1e-6), round((t - floor(t + 1e-6)) * 4) + 1),
+             actual = as.numeric(test), point = as.numeric(fc$mean),
+             lower_80 = as.numeric(fc$lower[, "80%"]), upper_80 = as.numeric(fc$upper[, "80%"]),
+             lower_95 = as.numeric(fc$lower[, "95%"]), upper_95 = as.numeric(fc$upper[, "95%"]))
+}
+write.csv(rbind(holdout_frame("US/Canada average", us_canada_forecast, us_canada_test),
+                holdout_frame("Germany", germany_forecast, germany_test)),
+          file.path(results_dir, "holdout_forecasts.csv"), row.names = FALSE)
+growth_frame <- data.frame(quarter = sprintf("%d-Q%d", floor(time(us_canada_ts) + 1e-6),
+                                             cycle(us_canada_ts)),
+                           us = us_growth, canada = canada_growth,
+                           us_canada_average = as.numeric(us_canada_ts), germany = as.numeric(germany_ts))
+write.csv(growth_frame, file.path(results_dir, "growth_series.csv"), row.names = FALSE)
+
 add(sprintf("## Single holdout: last %d quarters (%s to %s)", forecast_horizon,
-            paste(start(north_america_test), collapse = "-Q"), paste(end(north_america_test), collapse = "-Q")))
+            paste(start(us_canada_test), collapse = "-Q"), paste(end(us_canada_test), collapse = "-Q")))
 add("")
-add(sprintf("ARIMA orders chosen on the training data: North America %s, Europe %s.",
-            paste(arimaorder(north_america_arima), collapse = ","), paste(arimaorder(europe_arima), collapse = ",")))
+add(sprintf("ARIMA orders chosen on the training data: US/Canada average %s, Germany %s.",
+            paste(arimaorder(us_canada_arima), collapse = ","), paste(arimaorder(germany_arima), collapse = ",")))
 add("`in_sample_RMSE` is fit on the training data; every `test_` column and the interval coverage are out-of-sample. ",
     "MAPE is unstable when growth is near zero. With 8 test quarters, coverage moves in steps of 12.5%.")
 add("")
@@ -296,16 +319,16 @@ add("")
 # without baselines.
 
 # RESIDUAL AND ARCH DIAGNOSTICS -------------------------------------------------
-north_america_residuals <- residuals(north_america_arima)
-europe_residuals <- residuals(europe_arima)
+us_canada_residuals <- residuals(us_canada_arima)
+germany_residuals <- residuals(germany_arima)
 
 diagnostics <- data.frame(
-  region = c("North America", "Europe"),
+  region = c("US/Canada average", "Germany"),
   ADF_p = c(adf_na$p.value, adf_eu$p.value),
-  LjungBox_lag8_p = c(Box.test(north_america_residuals, lag = 8, type = "Ljung-Box")$p.value,
-                      Box.test(europe_residuals, lag = 8, type = "Ljung-Box")$p.value),
-  ARCH_LM_lag8_p = c(ArchTest(north_america_residuals, lags = 8)$p.value,
-                     ArchTest(europe_residuals, lags = 8)$p.value)
+  LjungBox_lag8_p = c(Box.test(us_canada_residuals, lag = 8, type = "Ljung-Box")$p.value,
+                      Box.test(germany_residuals, lag = 8, type = "Ljung-Box")$p.value),
+  ARCH_LM_lag8_p = c(ArchTest(us_canada_residuals, lags = 8)$p.value,
+                     ArchTest(germany_residuals, lags = 8)$p.value)
 )
 print(diagnostics)
 write.csv(diagnostics, file.path(results_dir, "diagnostics.csv"), row.names = FALSE)
@@ -315,8 +338,8 @@ add(md_table(diagnostics))
 add("")
 
 # Reported in the original report:
-# Ljung-Box p-values: North America 0.264, Europe 0.441
-# ARCH-LM p-values: North America approximately 0.892, Europe approximately 0.135
+# Ljung-Box p-values: "North America" 0.264, Germany 0.441
+# ARCH-LM p-values: "North America" approximately 0.892, Germany approximately 0.135
 
 # GARCH VOLATILITY MODELS -------------------------------------------------------
 garch_specification <- ugarchspec(
@@ -325,41 +348,42 @@ garch_specification <- ugarchspec(
   distribution.model = "norm"
 )
 
-north_america_garch <- ugarchfit(spec = garch_specification, data = north_america_ts, solver = "hybrid")
-europe_garch <- ugarchfit(spec = garch_specification, data = europe_ts, solver = "hybrid")
+us_canada_garch <- ugarchfit(spec = garch_specification, data = us_canada_ts, solver = "hybrid")
+germany_garch <- ugarchfit(spec = garch_specification, data = germany_ts, solver = "hybrid")
 
-print(north_america_garch)
-print(europe_garch)
+print(us_canada_garch)
+print(germany_garch)
 
 garch_table <- data.frame(
-  region = c("North America", "Europe"),
-  alpha1 = c(coef(north_america_garch)[["alpha1"]], coef(europe_garch)[["alpha1"]]),
-  beta1 = c(coef(north_america_garch)[["beta1"]], coef(europe_garch)[["beta1"]]),
-  mean_conditional_sd = c(mean(sigma(north_america_garch)), mean(sigma(europe_garch)))
+  region = c("US/Canada average", "Germany"),
+  alpha1 = c(coef(us_canada_garch)[["alpha1"]], coef(germany_garch)[["alpha1"]]),
+  beta1 = c(coef(us_canada_garch)[["beta1"]], coef(germany_garch)[["beta1"]]),
+  mean_conditional_sd = c(mean(sigma(us_canada_garch)), mean(sigma(germany_garch)))
 )
+write.csv(garch_table, file.path(results_dir, "garch.csv"), row.names = FALSE)
 add("## GARCH(1,1) with ARMA(1,1) mean (full sample)")
 add("")
 add(md_table(garch_table))
 add("")
 
-save_plot("garch_volatility_north_america",
-          plot(as.numeric(sigma(north_america_garch)), type = "l",
-               main = "North America Conditional Volatility", ylab = "Conditional Standard Deviation"))
-save_plot("garch_volatility_europe",
-          plot(as.numeric(sigma(europe_garch)), type = "l",
-               main = "Europe Conditional Volatility", ylab = "Conditional Standard Deviation"))
+save_plot("garch_volatility_us_canada",
+          plot(as.numeric(sigma(us_canada_garch)), type = "l",
+               main = "US/Canada average Conditional Volatility", ylab = "Conditional Standard Deviation"))
+save_plot("garch_volatility_germany",
+          plot(as.numeric(sigma(germany_garch)), type = "l",
+               main = "Germany Conditional Volatility", ylab = "Conditional Standard Deviation"))
 
 # FINAL TWO-YEAR FORECAST (with prediction intervals) ------------------------------
 # Refit on all data and forecast 8 quarters beyond the sample. There is no
 # actual data for these quarters in the analysis window, so they can't be scored.
-north_america_final_model <- auto.arima(north_america_ts, seasonal = TRUE)
-europe_final_model <- auto.arima(europe_ts, seasonal = TRUE)
+us_canada_final_model <- auto.arima(us_canada_ts, seasonal = TRUE)
+germany_final_model <- auto.arima(germany_ts, seasonal = TRUE)
 
-north_america_final_forecast <- forecast(north_america_final_model, h = 8, level = c(80, 95))
-europe_final_forecast <- forecast(europe_final_model, h = 8, level = c(80, 95))
+us_canada_final_forecast <- forecast(us_canada_final_model, h = 8, level = c(80, 95))
+germany_final_forecast <- forecast(germany_final_model, h = 8, level = c(80, 95))
 
-print(north_america_final_forecast)
-print(europe_final_forecast)
+print(us_canada_final_forecast)
+print(germany_final_forecast)
 
 forecast_table <- function(region, fc) {
   t <- time(fc$mean)
@@ -371,25 +395,25 @@ forecast_table <- function(region, fc) {
     lower_95 = as.numeric(fc$lower[, "95%"]), upper_95 = as.numeric(fc$upper[, "95%"])
   )
 }
-final_forecasts <- rbind(forecast_table("North America", north_america_final_forecast),
-                         forecast_table("Europe", europe_final_forecast))
+final_forecasts <- rbind(forecast_table("US/Canada average", us_canada_final_forecast),
+                         forecast_table("Germany", germany_final_forecast))
 write.csv(final_forecasts, file.path(results_dir, "final_forecast.csv"), row.names = FALSE)
-add(sprintf("## Forecast beyond the sample, with 80%% and 95%% prediction intervals (models: North America %s, Europe %s)",
-            paste(arimaorder(north_america_final_model), collapse = ","),
-            paste(arimaorder(europe_final_model), collapse = ",")))
+add(sprintf("## Forecast beyond the sample, with 80%% and 95%% prediction intervals (models: US/Canada average %s, Germany %s)",
+            paste(arimaorder(us_canada_final_model), collapse = ","),
+            paste(arimaorder(germany_final_model), collapse = ",")))
 add("")
 add(md_table(final_forecasts))
 add("")
-save_plot("final_forecast_north_america", plot(north_america_final_forecast, main = "North America: 8-quarter forecast"))
-save_plot("final_forecast_europe", plot(europe_final_forecast, main = "Europe: 8-quarter forecast"))
+save_plot("final_forecast_us_canada", plot(us_canada_final_forecast, main = "US/Canada average: 8-quarter forecast"))
+save_plot("final_forecast_germany", plot(germany_final_forecast, main = "Germany: 8-quarter forecast"))
 
 # Reported in the original report:
-# North America: approximately 4.63%
-# Europe: approximately 0.73%
+# "North America": approximately 4.63%
+# Germany: approximately 0.73%
 
 # STATISTICAL COMPARISON --------------------------------------------------------
-mean_difference_test <- t.test(as.numeric(north_america_ts), as.numeric(europe_ts))
-variance_comparison <- var.test(as.numeric(north_america_ts), as.numeric(europe_ts))
+mean_difference_test <- t.test(as.numeric(us_canada_ts), as.numeric(germany_ts))
+variance_comparison <- var.test(as.numeric(us_canada_ts), as.numeric(germany_ts))
 
 print(mean_difference_test)
 print(variance_comparison)
@@ -402,12 +426,23 @@ add(sprintf("Welch t-test, difference in mean growth: %.3f pp (95%% CI %.3f to %
     "Both tests assume independent observations, which serially correlated growth rates are not, so the p-values are optimistic.")
 add("")
 
+write.csv(data.frame(
+  mean_difference_pp = unname(diff(rev(mean_difference_test$estimate))),
+  ci95_low = mean_difference_test$conf.int[1], ci95_high = mean_difference_test$conf.int[2],
+  welch_p = mean_difference_test$p.value,
+  variance_ratio = unname(variance_comparison$estimate), f_test_p = variance_comparison$p.value
+), file.path(results_dir, "regional_comparison.csv"), row.names = FALSE)
+writeLines(c(sprintf("arima_holdout_us_canada,%s", paste(arimaorder(us_canada_arima), collapse = "-")),
+             sprintf("arima_holdout_germany,%s", paste(arimaorder(germany_arima), collapse = "-")),
+             sprintf("arima_final_us_canada,%s", paste(arimaorder(us_canada_final_model), collapse = "-")),
+             sprintf("arima_final_germany,%s", paste(arimaorder(germany_final_model), collapse = "-"))),
+           file.path(results_dir, "arima_orders.csv"))
 writeLines(report, file.path(results_dir, "gdp_results.md"))
 writeLines(capture.output(sessionInfo()), file.path(results_dir, "sessionInfo.txt"))
 cat("\nWrote results/gdp_results.md, CSV tables and figures/.\n")
 
-# KEY FINDINGS (from the original report) ----------------------------------------
-# - North America demonstrated higher average growth and greater volatility.
+# KEY FINDINGS (from the original report; not reproduced, see README) ---------------
+# - "North America" demonstrated higher average growth and greater volatility.
 # - Seasonal effects were limited in both regional series.
 # - ARIMA forecasts preserved a persistent regional growth differential.
 # - Residual tests suggested limited ARCH evidence, but GARCH was retained to

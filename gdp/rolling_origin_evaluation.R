@@ -28,8 +28,8 @@ first_quarter <- as.integer(sub(".*Q", "", gdp$date[1]))
 growth <- function(x) diff(log(as.numeric(x))) * 100
 start <- c(first_year + (first_quarter == 4), first_quarter %% 4 + 1)
 series <- list(
-  `North America` = ts(rowMeans(cbind(growth(gdp$united_states), growth(gdp$canada))), start = start, frequency = 4),
-  Europe = ts(growth(gdp$europe), start = start, frequency = 4)
+  `US/Canada average` = ts(rowMeans(cbind(growth(gdp$united_states), growth(gdp$canada))), start = start, frequency = 4),
+  Germany = ts(growth(gdp$germany), start = start, frequency = 4)
 )
 
 forecasters <- list(
