@@ -21,15 +21,8 @@
 # - Forecast evaluation using MAPE and MPE
 
 # PACKAGES ---------------------------------------------------------------------
-required_packages <- c("readxl", "forecast")
-missing_packages <- required_packages[
-  !required_packages %in% rownames(installed.packages())
-]
-if (length(missing_packages) > 0) {
-  install.packages(missing_packages)
-}
-library(readxl)
-library(forecast)
+source(file.path("R", "packages.R"))  # run from the repository root
+require_packages(c("readxl", "forecast"))
 
 # DATA LOADING -----------------------------------------------------------------
 # Place goy.xls in a data/ folder beside this script.

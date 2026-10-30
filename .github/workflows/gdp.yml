@@ -1,0 +1,81 @@
+name: gdp-analysis
+
+# Reproduces the lead project from a fresh clone: install pinned packages, download the
+# OECD data, run the analysis and the rolling-origin evaluation, and publish the result
+# tables. Also checks that the supporting scripts parse and fail clearly without data.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      commit_report:
+        description: "Commit the regenerated report/ back to this branch"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write  # used only by the manual "commit_report" run
+
+jobs:
+  reproduce:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.5"
+          use-public-rspm: true
+      - name: Install pinned packages
+        run: Rscript install_packages.R
+      - name: Supporting scripts parse and stop clearly without their data
+        run: |
+          for f in supporting/*.R gdp/*.R; do Rscript -e "invisible(parse('$f'))"; done
+          for f in supporting/*.R; do
+            if Rscript "$f" 2> err.txt; then echo "$f ran without data?"; exit 1; fi
+            grep -q "Missing data/" err.txt || { cat err.txt; exit 1; }
+          done
+      - name: Download OECD data
+        run: Rscript gdp/fetch_oecd_gdp.R && cat data/comparative_gdp_oecd.SOURCE.txt
+      - name: Comparative GDP analysis
+        run: Rscript gdp/comparative_gdp_analysis.R
+      - name: Rolling-origin evaluation
+        run: Rscript gdp/rolling_origin_evaluation.R
+      - name: Build the report and its figures
+        run: |
+          cp -r report report.committed 2>/dev/null || true
+          Rscript gdp/build_report.R
+      - name: Does the committed report match a fresh run?
+        run: |
+          # The first line records the build date and versions, so it always differs.
+          if [ -f report.committed/comparative_gdp_report.md ] && \
+             diff <(tail -n +4 report.committed/comparative_gdp_report.md) <(tail -n +4 report/comparative_gdp_report.md) > report.diff; then
+            echo "::notice title=report::committed report matches this run"
+          else
+            echo "::warning title=report::committed report differs from this run (OECD revision, package change or code change). Re-run this workflow manually with commit_report to refresh it."
+            head -c 3000 report.diff || true
+          fi
+      - name: Commit the regenerated report (manual runs only)
+        if: github.event_name == 'workflow_dispatch' && inputs.commit_report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add report/
+          git diff --cached --quiet && { echo "report unchanged"; exit 0; }
+          git commit -m "Regenerate report from CI run ${{ github.run_id }} (OECD data retrieved this run)"
+          git push origin "HEAD:${{ github.ref_name }}"
+      - name: Publish result tables as annotations
+        if: always()
+        run: |
+          for f in results/gdp_results.md results/rolling_origin.md data/comparative_gdp_oecd.SOURCE.txt err.txt report.diff; do
+            [ -f "$f" ] || continue
+            python3 -c "import sys;t=open(sys.argv[1]).read().replace('%','%25').replace('\n','%0A');print('::notice title='+sys.argv[1]+'::'+t)" "$f"
+          done
+          if [ -f results/sessionInfo.txt ]; then
+            python3 -c "import sys;t=open(sys.argv[1]).read().replace('%','%25').replace('\n','%0A');print('::notice title=sessionInfo::'+t)" results/sessionInfo.txt
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results
+          path: results/

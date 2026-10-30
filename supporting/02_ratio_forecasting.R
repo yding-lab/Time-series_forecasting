@@ -17,18 +17,8 @@
 # The original model specifications and reported conclusions are preserved.
 
 # REQUIRED PACKAGES ------------------------------------------------------------
-required_packages <- c("readxl", "nlme")
-
-missing_packages <- required_packages[
-  !required_packages %in% rownames(installed.packages())
-]
-
-if (length(missing_packages) > 0) {
-  install.packages(missing_packages)
-}
-
-library(readxl)
-library(nlme)
+source(file.path("R", "packages.R"))  # run from the repository root
+require_packages(c("readxl", "nlme"))
 
 # DATA AVAILABILITY -------------------------------------------------------------
 # Expected file: data/trade.xls

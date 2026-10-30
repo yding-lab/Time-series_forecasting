@@ -1,0 +1,7 @@
+# Data is downloaded (gdp/fetch_oecd_gdp.R) or supplied locally; not redistributed here.
+data/
+results/
+Rplots.pdf
+.Rhistory
+.RData
+.Rproj.user/
