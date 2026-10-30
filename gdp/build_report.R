@@ -109,7 +109,7 @@ for (r in REGIONS) {
                 fmt_order(if (r == "Germany") "arima_holdout_germany" else "arima_holdout_us_canada")),
         adj = 0, font.main = 1, cex.main = 0.95, line = 2)
   legend("top", inset = c(0, -0.1), xpd = TRUE, horiz = TRUE, bty = "n", cex = 0.7,
-         legend = c("actual", "forecast", "80% interval", "95% interval"),
+         legend = c("actual", "forecast", "80% PI", "95% PI"),
          col = c("#0b0b0b", COL[[r]], adjustcolor(COL[[r]], 0.45), adjustcolor(COL[[r]], 0.2)),
          lwd = c(1.5, 2.5, 8, 8), pch = c(16, NA, NA, NA))
 }
@@ -305,7 +305,9 @@ lines <- c(
   "",
   "**What can and can't be established.** Average quarter-over-quarter growth of US and Canadian real GDP is well under 1% per quarter in any published vintage, so a mean of 4.48% per quarter (about 19% a year) can't come from the transformation the report describes. The most likely explanations are a differently defined input, such as already-transformed or annualized growth rates, nominal values, or a series on a different basis, or a processing error. The original input file wasn't kept, so the cause **can't be confirmed**. Germany's original mean (0.76% per quarter, about 3% a year) is also well above what Germany's real GDP grew over this window, which points to the same kind of input problem. Data revisions shift long-run averages by far less than these gaps.",
   "",
-  "The report's methods and its qualitative framing carry over. Its quantitative conclusions do not: there's no evidence here of a large or persistent growth gap, and the selected models are simpler.",
+  sprintf("The report's methods carry over: the growth transformation, decomposition, ARIMA, residual and ARCH diagnostics, and GARCH. Its conclusions do not. There's no evidence here of a large or persistent growth gap, the selected models are simpler, and %s.",
+          if (cmp$variance_ratio < 1) sprintf("the US/Canada average is not more volatile than Germany (variance ratio %s), contrary to the original", f2(cmp$variance_ratio))
+          else sprintf("the US/Canada average is more volatile than Germany (variance ratio %s, F-test p = %s)", f2(cmp$variance_ratio), f3(cmp$f_test_p))),
   "",
   "## Limitations",
   "",
